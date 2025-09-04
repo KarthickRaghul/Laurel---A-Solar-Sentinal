@@ -1,5 +1,5 @@
 # backend/services/device_service.py
-from backend.Schemas.device_model import devices
+from Schemas.device_model import devices
 from bson import ObjectId
 
 def add_device(user_id, name, ip, device_type):

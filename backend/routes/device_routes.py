@@ -1,7 +1,7 @@
 # backend/routes/device_routes.py
 from flask import Blueprint, request, jsonify
-from backend.services.device_service import add_device, get_devices, delete_device, update_device
-from backend.utils.jwt_utils import verify_token
+from services.device_service import add_device, get_devices, delete_device, update_device
+from utils.jwt_utils import verify_token
 
 device_bp = Blueprint("devices", __name__, url_prefix="/api/devices")
 

@@ -1,6 +1,6 @@
 # services/cve_service.py
 import requests
-from scanner.vuln_scanner import vuln_scan
+from .scanner.vuln_scanner import vuln_scan
 
 def fetch_cves(keyword: str, max_results: int = 5):
     """

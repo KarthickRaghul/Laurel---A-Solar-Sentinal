@@ -1,3 +1,3 @@
-from backend.utils.db import db
+from utils.db import db
 
 users = db["users"]  # MongoDB "users" collection

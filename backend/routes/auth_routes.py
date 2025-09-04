@@ -1,6 +1,6 @@
 from flask import Blueprint, request, jsonify
-from backend.services.auth_service import register_user, login_user
-from backend.utils.jwt_utils import verify_token
+from services.auth_service import register_user, login_user
+from utils.jwt_utils import verify_token
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 

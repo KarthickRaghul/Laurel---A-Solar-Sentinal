@@ -1,6 +1,6 @@
 import bcrypt
-from backend.Schemas.user_model import users
-from backend.utils.jwt_utils import create_token
+from Schemas.user_model import users
+from utils.jwt_utils import create_token
 
 def register_user(username, email, password):
     if users.find_one({"email": email}):
