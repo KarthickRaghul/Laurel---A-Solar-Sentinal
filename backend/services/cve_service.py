@@ -1,12 +1,15 @@
-from flask import Flask, jsonify, request
+# services/cve_service.py
 import requests
 from scanner.vuln_scanner import vuln_scan
 
-app = Flask(__name__)
-
-def fetch_cves(keyword, max_results=5):
-    url = f"https://services.nvd.nist.gov/rest/json/cves/2.0"
+def fetch_cves(keyword: str, max_results: int = 5):
+    """
+    Fetch CVEs from NVD using keyword search.
+    Returns a list of CVE dicts.
+    """
+    url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
     params = {"keywordSearch": keyword, "resultsPerPage": max_results}
+
     try:
         resp = requests.get(url, params=params, timeout=10)
         resp.raise_for_status()
@@ -25,34 +28,25 @@ def fetch_cves(keyword, max_results=5):
     except Exception as e:
         return [{"error": f"Failed to fetch CVEs: {str(e)}"}]
 
-@app.route('/api/scan/cve', methods=['POST'])
-def api_cve_scan():
-    """
-    POST /api/scan/cve
-    Request JSON: { "ip": "192.168.1.10" }
-    """
-    data = request.get_json()
-    ip = data.get("ip") if data else None
-    if not ip:
-        return jsonify({"error": "Please provide JSON with {'ip': '<target>'}"}), 400
 
-    # Run vuln scan
+def run_vuln_scan(ip: str):
+    """
+    Run vulnerability scan on a host and fetch CVEs for detected services.
+    Returns dict: {"scan_result": ..., "cve_results": ...}
+    """
     scan_result = vuln_scan(ip)
 
-    # Collect service keywords for CVE lookup
+    # Extract unique service keywords for CVE lookup
     services = []
     for vuln in scan_result.get("vulnerabilities", []):
         keyword = vuln.get("script", "")
         if keyword and keyword not in services:
             services.append(keyword)
 
-    # Fetch CVEs for each detected service keyword
+    # Fetch CVEs for each detected service
     cve_results = {service: fetch_cves(service) for service in services}
 
-    return jsonify({
+    return {
         "scan_result": scan_result,
         "cve_results": cve_results
-    })
-
-if __name__ == "__main__":
-    app.run(debug=True)
+    }
