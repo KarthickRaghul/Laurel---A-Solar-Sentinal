@@ -1,52 +1,111 @@
 # services/cve_service.py
 import requests
-from .scanner.vuln_scanner import vuln_scan
+import re
+
+# NVD base url
+NVD_BASE = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+
 
 def fetch_cves(keyword: str, max_results: int = 5):
     """
-    Fetch CVEs from NVD using keyword search.
-    Returns a list of CVE dicts.
+    Fetch CVEs from NVD using keyword search and return list of normalized CVE dicts.
+    Each returned dict will try to include:
+    { "id": ..., "description": ..., "metrics": ..., "references": [...], "raw": <raw cve obj> }
     """
-    url = "https://services.nvd.nist.gov/rest/json/cves/2.0"
     params = {"keywordSearch": keyword, "resultsPerPage": max_results}
-
     try:
-        resp = requests.get(url, params=params, timeout=10)
+        resp = requests.get(NVD_BASE, params=params, timeout=10)
         resp.raise_for_status()
         data = resp.json()
-
-        cve_list = []
+        out = []
         for item in data.get("vulnerabilities", []):
             cve = item.get("cve", {})
-            cve_list.append({
+            descriptions = cve.get("descriptions", [])
+            desc = ""
+            if descriptions:
+                # pick first english description
+                for d in descriptions:
+                    if d.get("lang", "").lower() == "en":
+                        desc = d.get("value", "")
+                        break
+                if not desc:
+                    desc = descriptions[0].get("value", "")
+
+            metrics = cve.get("metrics", {})  # contains cvssMetrics if present
+            references = [ref.get("url") for ref in cve.get("references", [])]
+
+            out.append({
                 "id": cve.get("id"),
-                "description": cve.get("descriptions", [{}])[0].get("value", ""),
-                "severity": cve.get("metrics", {}),
-                "references": [ref.get("url") for ref in cve.get("references", [])]
+                "description": desc,
+                "metrics": metrics,
+                "references": references,
+                "raw": cve
             })
-        return cve_list
+        return out
     except Exception as e:
         return [{"error": f"Failed to fetch CVEs: {str(e)}"}]
 
 
-def run_vuln_scan(ip: str):
+def extract_cvss_from_cve(cve_entry: dict) -> float | None:
     """
-    Run vulnerability scan on a host and fetch CVEs for detected services.
-    Returns dict: {"scan_result": ..., "cve_results": ...}
+    Try to extract a CVSS score (v3 if available, else v2) from the NVD metrics structure.
+    Returns float or None.
     """
-    scan_result = vuln_scan(ip)
+    if not isinstance(cve_entry, dict):
+        return None
 
-    # Extract unique service keywords for CVE lookup
-    services = []
-    for vuln in scan_result.get("vulnerabilities", []):
-        keyword = vuln.get("script", "")
-        if keyword and keyword not in services:
-            services.append(keyword)
+    metrics = cve_entry.get("metrics", {}) or {}
 
-    # Fetch CVEs for each detected service
-    cve_results = {service: fetch_cves(service) for service in services}
+    # Common NVD fields:
+    # metrics may contain "cvssMetricV31", "cvssMetricV30", "cvssMetricV2"
+    for key in ("cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
+        v = metrics.get(key)
+        if v:
+            # v may be a list
+            if isinstance(v, list) and len(v) > 0:
+                item = v[0]
+                cvss = item.get("cvssData", {}).get("baseScore") or item.get("baseScore")
+                try:
+                    return float(cvss)
+                except Exception:
+                    pass
+            elif isinstance(v, dict):
+                cvss = v.get("cvssData", {}).get("baseScore") or v.get("baseScore")
+                try:
+                    return float(cvss)
+                except Exception:
+                    pass
 
-    return {
-        "scan_result": scan_result,
-        "cve_results": cve_results
-    }
+    # fallback: attempt to find numeric score in description text (rare)
+    desc = cve_entry.get("description", "") or ""
+    m = re.search(r"CVSS\sv3.*?([\d\.]{1,4})", desc, re.I)
+    if m:
+        try:
+            return float(m.group(1))
+        except Exception:
+            pass
+
+    return None
+
+
+def map_cvss_to_severity(score: float | None) -> str:
+    """
+    Map numeric CVSS to severity label.
+    (CVSS v3 mapping)
+    """
+    if score is None:
+        return "Unknown"
+    try:
+        s = float(score)
+    except Exception:
+        return "Unknown"
+
+    if s >= 9.0:
+        return "Critical"
+    if s >= 7.0:
+        return "High"
+    if s >= 4.0:
+        return "Medium"
+    if s >= 0.1:
+        return "Low"
+    return "None"
