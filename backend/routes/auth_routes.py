@@ -1,9 +1,11 @@
 from flask import Blueprint, request, jsonify
 from services.auth_service import register_user, login_user
 from utils.jwt_utils import verify_token
+from routes.middlewares.auth_middleware import require_auth
 
 auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
 
+# ---- User Signup ----
 @auth_bp.route("/signup", methods=["POST"])
 def signup():
     data = request.get_json()
@@ -13,6 +15,7 @@ def signup():
         data.get("password")
     ))
 
+# ---- User Login ----
 @auth_bp.route("/login", methods=["POST"])
 def login():
     data = request.get_json()
@@ -21,15 +24,8 @@ def login():
         data.get("password")
     ))
 
+# ---- Get Current User ----
 @auth_bp.route("/me", methods=["GET"])
+@require_auth
 def me():
-    auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
-        return jsonify({"error": "Missing or invalid token"}), 401
-
-    token = auth_header.split(" ")[1]
-    payload = verify_token(token)
-    if not payload:
-        return jsonify({"error": "Token expired or invalid"}), 401
-
-    return jsonify({"user": payload}), 200
+    return jsonify({"user": request.user}), 200

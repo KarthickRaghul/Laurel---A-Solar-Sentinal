@@ -1,11 +1,12 @@
-# routes/cve_routes.py
 from flask import Blueprint, request, jsonify
 from services.cve_service import run_vuln_scan
 from Schemas.cve_model import CVERecord
+from routes.middlewares.auth_middleware import require_auth
 
 cve_bp = Blueprint("cve", __name__, url_prefix="/api/cves")
 
 @cve_bp.route("/scan", methods=["POST"])
+@require_auth
 def scan_cve():
     """
     POST /api/cves/scan
@@ -18,7 +19,7 @@ def scan_cve():
 
     result = run_vuln_scan(ip)
 
-    # Optionally, save scan & CVE results to DB
+    # Save scan & CVE results to DB
     CVERecord.save_scan(ip, result)
 
     return jsonify(result), 200
