@@ -1,213 +1,150 @@
-import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useQuery } from "@tanstack/react-query";
+import { Plus, User, Trash2 } from "lucide-react";
+import Header from "@/components/layout/header";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { User, Plus, Trash2 } from "lucide-react";
-import { mockUsers } from "@/lib/mock-data";
-import { useScrollReveal } from "@/hooks/use-scroll-reveal";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+
+interface User {
+  id: string;
+  username: string;
+  email: string;
+  role: string;
+  isActive: boolean;
+}
 
 export default function Settings() {
-  useScrollReveal();
-  
-  const [users, setUsers] = useState(mockUsers);
-  const [isAddUserOpen, setIsAddUserOpen] = useState(false);
-  const [newUserEmail, setNewUserEmail] = useState("");
-  const [newUserRole, setNewUserRole] = useState("viewer");
+  const { data, isLoading } = useQuery({
+    queryKey: ["/api/users"],
+  });
 
-  const getUserAvatar = (email: string) => {
+  const users: User[] = data?.users || [];
+
+  const getUserIcon = (role: string) => {
     const colors = {
-      "admin@cyberguard.com": "bg-primary",
-      "analyst@cyberguard.com": "bg-blue-500", 
-      "viewer@cyberguard.com": "bg-purple-500",
+      admin: "bg-primary",
+      analyst: "bg-blue-500",
+      viewer: "bg-purple-500",
     };
-    return colors[email as keyof typeof colors] || "bg-gray-500";
-  };
-
-  const getStatusBadge = (status: string) => {
-    return status === "active" 
-      ? "bg-green-100 text-green-800"
-      : "bg-gray-100 text-gray-800";
-  };
-
-  const handleAddUser = () => {
-    if (newUserEmail && newUserRole) {
-      const newUser = {
-        id: String(users.length + 1),
-        email: newUserEmail,
-        role: newUserRole.charAt(0).toUpperCase() + newUserRole.slice(1),
-        status: "active",
-      };
-      setUsers([...users, newUser]);
-      setNewUserEmail("");
-      setNewUserRole("viewer");
-      setIsAddUserOpen(false);
-    }
-  };
-
-  const handleDeleteUser = (userId: string) => {
-    setUsers(users.filter(user => user.id !== userId));
+    return colors[role as keyof typeof colors] || "bg-gray-500";
   };
 
   return (
-    <div className="reveal-header">
-      <div className="mb-8 reveal-header">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>
-        <p className="text-muted-foreground">Manage your account and application preferences</p>
-      </div>
+    <div className="min-h-screen bg-background page-transition">
+      <Header />
+      
+      <div className="max-w-7xl mx-auto p-6">
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-foreground mb-2">Settings</h2>
+          <p className="text-muted-foreground">Manage your account and application preferences</p>
+        </div>
 
-      {/* User Management Section */}
-      <Card className="mb-8 card-hover reveal-card">
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>User Management</CardTitle>
-            <Dialog open={isAddUserOpen} onOpenChange={setIsAddUserOpen}>
-              <DialogTrigger asChild>
-                <Button data-testid="add-user-button" className="btn-transition">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Add User
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Add New User</DialogTitle>
-                </DialogHeader>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="email">Email Address</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      placeholder="user@example.com"
-                      value={newUserEmail}
-                      onChange={(e) => setNewUserEmail(e.target.value)}
-                      data-testid="new-user-email"
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="role">Role</Label>
-                    <Select value={newUserRole} onValueChange={setNewUserRole}>
-                      <SelectTrigger data-testid="new-user-role">
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="viewer">Viewer</SelectItem>
-                        <SelectItem value="analyst">Analyst</SelectItem>
-                        <SelectItem value="admin">Admin</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex space-x-3 pt-4">
-                    <Button
-                      variant="outline"
-                      className="flex-1 btn-transition"
-                      onClick={() => setIsAddUserOpen(false)}
-                      data-testid="cancel-add-user"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      className="flex-1 btn-transition"
-                      onClick={handleAddUser}
-                      data-testid="submit-add-user"
-                    >
-                      Add User
-                    </Button>
-                  </div>
-                </div>
-              </DialogContent>
-            </Dialog>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <h4 className="text-lg font-medium text-foreground mb-4">Current Users</h4>
-          <div className="space-y-4">
-            {users.map((user, index) => (
-              <div 
-                key={user.id} 
-                className="flex items-center justify-between p-4 bg-secondary/30 rounded-lg"
-                data-testid={`user-row-${index}`}
-              >
-                <div className="flex items-center space-x-3">
-                  <div className={`w-10 h-10 ${getUserAvatar(user.email)} rounded-full flex items-center justify-center`}>
-                    <User className="text-white w-5 h-5" />
-                  </div>
-                  <div>
-                    <div className="text-foreground font-medium">{user.email}</div>
-                    <div className="text-sm text-muted-foreground">{user.role}</div>
-                  </div>
-                </div>
-                <div className="flex items-center space-x-3">
-                  <Badge className={getStatusBadge(user.status)}>
-                    {user.status.charAt(0).toUpperCase() + user.status.slice(1)}
-                  </Badge>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleDeleteUser(user.id)}
-                    className="text-muted-foreground hover:text-red-500 btn-transition"
-                    data-testid={`delete-user-${index}`}
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Security Settings Section */}
-      <Card className="card-hover reveal-card">
-        <CardHeader>
-          <CardTitle>Security Settings</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {/* Two-Factor Authentication */}
-          <div className="flex items-center justify-between py-4 border-b border-border">
+        {/* User Management */}
+        <div className="bg-card rounded-xl p-6 border border-border mb-6">
+          <div className="flex items-center justify-between mb-6">
             <div>
-              <h4 className="text-lg font-medium text-foreground">Two-Factor Authentication</h4>
-              <p className="text-sm text-muted-foreground">Add an extra layer of security to your account</p>
+              <h3 className="text-lg font-semibold text-foreground mb-1">User Management</h3>
             </div>
-            <Switch defaultChecked data-testid="2fa-toggle" />
+            <Button className="bg-primary text-primary-foreground hover:bg-primary/90" data-testid="button-add-user">
+              <Plus className="mr-2 h-4 w-4" />
+              Add User
+            </Button>
           </div>
 
-          {/* Session Timeout */}
-          <div className="py-4 border-b border-border">
-            <h4 className="text-lg font-medium text-foreground mb-2">Session Timeout</h4>
-            <Select defaultValue="30min">
-              <SelectTrigger className="w-full max-w-xs" data-testid="session-timeout">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="30min">30 minutes</SelectItem>
-                <SelectItem value="1hour">1 hour</SelectItem>
-                <SelectItem value="2hours">2 hours</SelectItem>
-                <SelectItem value="4hours">4 hours</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          {/* Email Notifications */}
-          <div className="pt-4">
-            <h4 className="text-lg font-medium text-foreground mb-4">Email Notifications</h4>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <span className="text-foreground">Critical vulnerabilities detected</span>
-                <Switch defaultChecked data-testid="critical-alerts-toggle" />
+          <div>
+            <h4 className="text-md font-medium text-foreground mb-4">Current Users</h4>
+            {isLoading ? (
+              <div className="space-y-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="animate-pulse p-4 bg-secondary rounded-lg">
+                    <div className="h-4 bg-muted rounded w-1/2"></div>
+                  </div>
+                ))}
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-foreground">Weekly security reports</span>
-                <Switch defaultChecked data-testid="weekly-reports-toggle" />
+            ) : (
+              <div className="space-y-4">
+                {users.map((user) => (
+                  <div key={user.id} className="flex items-center justify-between p-4 bg-secondary rounded-lg" data-testid={`user-item-${user.username}`}>
+                    <div className="flex items-center">
+                      <div className={`w-10 h-10 ${getUserIcon(user.role)} rounded-full flex items-center justify-center mr-4`}>
+                        <User className="text-white h-5 w-5" />
+                      </div>
+                      <div>
+                        <div className="text-foreground font-medium">{user.email}</div>
+                        <div className="text-muted-foreground text-sm">{user.role.charAt(0).toUpperCase() + user.role.slice(1)}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                      <Badge className={user.isActive ? "status-active" : "status-inactive"} data-testid={`badge-status-${user.username}`}>
+                        {user.isActive ? "Active" : "Inactive"}
+                      </Badge>
+                      <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-foreground" data-testid={`button-delete-${user.username}`}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Security Settings */}
+        <div className="bg-card rounded-xl p-6 border border-border">
+          <h3 className="text-lg font-semibold text-foreground mb-6">Security Settings</h3>
+          
+          <div className="space-y-6">
+            {/* Two-Factor Authentication */}
+            <div className="flex items-center justify-between">
+              <div>
+                <h4 className="text-foreground font-medium">Two-Factor Authentication</h4>
+                <p className="text-muted-foreground text-sm">Add an extra layer of security to your account</p>
+              </div>
+              <Switch defaultChecked data-testid="switch-2fa" />
+            </div>
+
+            {/* Session Timeout */}
+            <div>
+              <h4 className="text-foreground font-medium mb-2">Session Timeout</h4>
+              <Select defaultValue="30">
+                <SelectTrigger data-testid="select-session-timeout">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="30">30 minutes</SelectItem>
+                  <SelectItem value="60">1 hour</SelectItem>
+                  <SelectItem value="120">2 hours</SelectItem>
+                  <SelectItem value="240">4 hours</SelectItem>
+                  <SelectItem value="480">8 hours</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Email Notifications */}
+            <div>
+              <h4 className="text-foreground font-medium mb-4">Email Notifications</h4>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="critical-alerts" className="text-foreground">Critical vulnerabilities detected</Label>
+                  <Switch id="critical-alerts" defaultChecked data-testid="switch-critical-alerts" />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="weekly-reports" className="text-foreground">Weekly security reports</Label>
+                  <Switch id="weekly-reports" defaultChecked data-testid="switch-weekly-reports" />
+                </div>
               </div>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

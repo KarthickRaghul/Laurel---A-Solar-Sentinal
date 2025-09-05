@@ -1,75 +1,47 @@
 import { useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Search } from "lucide-react";
+import Header from "@/components/layout/header";
+import DeviceInventory from "@/components/security/device-inventory";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import { Search, Wifi, AlertTriangle } from "lucide-react";
-import RiskBar from "@/components/ui/risk-bar";
-import { mockDevices } from "@/lib/mock-data";
-import { useScrollReveal } from "@/hooks/use-scroll-reveal";
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 export default function Devices() {
-  useScrollReveal();
-  
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [riskFilter, setRiskFilter] = useState("all");
 
-  const getStatusBadge = (status: string) => {
-    const badges = {
-      online: { icon: Wifi, className: "bg-green-100 text-green-800" },
-      offline: { icon: Wifi, className: "bg-gray-100 text-gray-800" },
-      warning: { icon: AlertTriangle, className: "bg-yellow-100 text-yellow-800" },
-    };
-    
-    const badge = badges[status as keyof typeof badges] || badges.online;
-    const Icon = badge.icon;
-    
-    return (
-      <Badge className={badge.className}>
-        <Icon className="w-3 h-3 mr-1" />
-        {status.charAt(0).toUpperCase() + status.slice(1)}
-      </Badge>
-    );
-  };
-
   return (
-    <div className="reveal-header">
-      <div className="mb-8 reveal-header">
-        <h1 className="text-3xl font-bold text-foreground mb-2">Device Management</h1>
-        <p className="text-muted-foreground">Monitor and manage all network devices</p>
-      </div>
+    <div className="min-h-screen bg-background page-transition">
+      <Header />
+      
+      <div className="max-w-7xl mx-auto p-6">
+        <div className="mb-8">
+          <h2 className="text-2xl font-bold text-foreground mb-2">Device Management</h2>
+          <p className="text-muted-foreground">Monitor and manage all network devices</p>
+        </div>
 
-      {/* Filters Section */}
-      <Card className="mb-8 card-hover reveal-card">
-        <CardContent className="p-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Search Bar */}
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground w-4 h-4" />
-                <Input
-                  type="text"
-                  placeholder="Search devices..."
-                  className="pl-10"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  data-testid="device-search-input"
-                />
-              </div>
+        {/* Search and Filters */}
+        <div className="bg-card rounded-xl p-6 border border-border mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
+              <Input
+                type="text"
+                data-testid="input-search-devices"
+                className="pl-10 pr-4 py-3 bg-input border border-border rounded-lg text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary focus:border-transparent"
+                placeholder="Search devices..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
             </div>
-            
-            {/* Status Filter */}
             <Select value={statusFilter} onValueChange={setStatusFilter}>
-              <SelectTrigger className="w-40" data-testid="status-filter">
+              <SelectTrigger data-testid="select-status-filter">
                 <SelectValue placeholder="All Status" />
               </SelectTrigger>
               <SelectContent>
@@ -79,10 +51,8 @@ export default function Devices() {
                 <SelectItem value="warning">Warning</SelectItem>
               </SelectContent>
             </Select>
-            
-            {/* Risk Level Filter */}
             <Select value={riskFilter} onValueChange={setRiskFilter}>
-              <SelectTrigger className="w-48" data-testid="risk-filter">
+              <SelectTrigger data-testid="select-risk-filter">
                 <SelectValue placeholder="All Risk Levels" />
               </SelectTrigger>
               <SelectContent>
@@ -94,51 +64,11 @@ export default function Devices() {
               </SelectContent>
             </Select>
           </div>
-        </CardContent>
-      </Card>
+        </div>
 
-      {/* Device Inventory Table */}
-      <Card className="card-hover reveal-table">
-        <CardHeader>
-          <CardTitle>Device Inventory</CardTitle>
-          <p className="text-muted-foreground">Complete list of network devices and their security status</p>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Device ID</TableHead>
-                <TableHead>Network Info</TableHead>
-                <TableHead>Manufacturer</TableHead>
-                <TableHead>Firmware</TableHead>
-                <TableHead>Risk Score</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Last Scan</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {mockDevices.map((device, index) => (
-                <TableRow key={device.id} data-testid={`device-row-${index}`} className="table-row-transition">
-                  <TableCell className="font-medium">{device.id}</TableCell>
-                  <TableCell>
-                    <div className="text-foreground">{device.ipAddress}</div>
-                    <div className="text-sm text-muted-foreground">{device.deviceType}</div>
-                  </TableCell>
-                  <TableCell>{device.manufacturer}</TableCell>
-                  <TableCell>{device.firmware}</TableCell>
-                  <TableCell>
-                    <RiskBar score={device.riskScore} />
-                  </TableCell>
-                  <TableCell>
-                    {getStatusBadge(device.status)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground">{device.lastScan}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+        {/* Device Inventory */}
+        <DeviceInventory />
+      </div>
     </div>
   );
 }

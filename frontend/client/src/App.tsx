@@ -3,25 +3,58 @@ import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import Navbar from "@/components/layout/navbar";
-import Home from "@/pages/home";
+import NotFound from "@/pages/not-found";
+import Login from "@/pages/login";
+import Dashboard from "@/pages/dashboard";
 import Devices from "@/pages/devices";
 import Settings from "@/pages/settings";
-import NotFound from "@/pages/not-found";
+import { useQuery } from "@tanstack/react-query";
+import { authApi } from "@/lib/auth";
+
+function AuthCheck({ children }: { children: React.ReactNode }) {
+  const { data: user, isLoading } = useQuery({
+    queryKey: ["/api/auth/me"],
+    queryFn: authApi.getCurrentUser,
+    retry: false,
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  });
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="text-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login />;
+  }
+
+  return <>{children}</>;
+}
 
 function Router() {
   return (
-    <div className="min-h-screen bg-background">
-      <Navbar />
-      <main className="p-6 page-transition">
-        <Switch>
-          <Route path="/" component={Home} />
-          <Route path="/devices" component={Devices} />
-          <Route path="/settings" component={Settings} />
-          <Route component={NotFound} />
-        </Switch>
-      </main>
-    </div>
+    <Switch>
+      <Route path="/" component={() => (
+        <AuthCheck>
+          <Dashboard />
+        </AuthCheck>
+      )} />
+      <Route path="/devices" component={() => (
+        <AuthCheck>
+          <Devices />
+        </AuthCheck>
+      )} />
+      <Route path="/settings" component={() => (
+        <AuthCheck>
+          <Settings />
+        </AuthCheck>
+      )} />
+      <Route path="/login" component={Login} />
+      <Route component={NotFound} />
+    </Switch>
   );
 }
 

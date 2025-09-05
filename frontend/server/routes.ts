@@ -1,79 +1,159 @@
-import type { Express } from "express";
+import type { Express, Request } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
-import { insertUserSchema } from "@shared/schema";
-import { z } from "zod";
+import { loginSchema, scanSchema } from "@shared/schema";
+
+// Extend Express Session type to include custom properties
+declare module 'express-session' {
+  interface SessionData {
+    userId?: string;
+    username?: string;
+  }
+}
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // User management routes
-  app.get("/api/users", async (req, res) => {
-    try {
-      const users = await storage.getAllUsers();
-      res.json(users);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch users" });
+  // Authentication middleware
+  const requireAuth = (req: any, res: any, next: any) => {
+    if (!req.session?.userId) {
+      return res.status(401).json({ message: "Authentication required" });
     }
-  });
+    next();
+  };
 
-  app.post("/api/users", async (req, res) => {
+  // Login endpoint
+  app.post("/api/auth/login", async (req, res) => {
     try {
-      const userData = insertUserSchema.parse(req.body);
-      const user = await storage.createUser(userData);
-      res.json(user);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        res.status(400).json({ error: error.errors });
-      } else {
-        res.status(500).json({ error: "Failed to create user" });
+      const { username, email, password } = loginSchema.parse(req.body);
+      
+      const user = await storage.getUserByUsername(username);
+      if (!user || user.email !== email || user.password !== password || !user.isActive) {
+        return res.status(401).json({ message: "Invalid credentials" });
       }
+
+      req.session.userId = user.id;
+      req.session.username = user.username;
+      
+      res.json({ 
+        user: { 
+          id: user.id, 
+          username: user.username, 
+          email: user.email, 
+          role: user.role 
+        } 
+      });
+    } catch (error) {
+      res.status(400).json({ message: "Invalid request data" });
     }
   });
 
-  app.delete("/api/users/:id", async (req, res) => {
+  // Logout endpoint
+  app.post("/api/auth/logout", (req, res) => {
+    req.session.destroy(() => {
+      res.json({ message: "Logged out successfully" });
+    });
+  });
+
+  // Check authentication status
+  app.get("/api/auth/me", requireAuth, async (req, res) => {
+    const user = await storage.getUser(req.session.userId);
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    
+    res.json({ 
+      user: { 
+        id: user.id, 
+        username: user.username, 
+        email: user.email, 
+        role: user.role 
+      } 
+    });
+  });
+
+  // Get dashboard data
+  app.get("/api/dashboard", requireAuth, async (req, res) => {
+    const devices = await storage.getAllDevices();
+    const openPorts = await storage.getAllOpenPorts();
+    const cves = await storage.getAllCVEs();
+    
+    const criticalCVEs = cves.filter(cve => cve.severity === "critical");
+    
+    res.json({
+      deviceCount: devices.length,
+      openPortsCount: openPorts.length,
+      criticalCVECount: criticalCVEs.length,
+      securityItemsCount: devices.length + openPorts.length + criticalCVEs.length,
+    });
+  });
+
+  // Get devices
+  app.get("/api/devices", requireAuth, async (req, res) => {
+    const devices = await storage.getAllDevices();
+    res.json({ devices });
+  });
+
+  // Get open ports
+  app.get("/api/open-ports", requireAuth, async (req, res) => {
+    const openPorts = await storage.getAllOpenPorts();
+    res.json({ openPorts });
+  });
+
+  // Get CVEs
+  app.get("/api/cves", requireAuth, async (req, res) => {
+    const cves = await storage.getAllCVEs();
+    res.json({ cves });
+  });
+
+  // Get users (admin only)
+  app.get("/api/users", requireAuth, async (req, res) => {
+    const currentUser = await storage.getUser(req.session.userId);
+    if (currentUser?.role !== "admin") {
+      return res.status(403).json({ message: "Admin access required" });
+    }
+    
+    const users = await storage.getAllUsers();
+    const sanitizedUsers = users.map(user => ({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      isActive: user.isActive,
+    }));
+    
+    res.json({ users: sanitizedUsers });
+  });
+
+  // Start scan
+  app.post("/api/scan", requireAuth, async (req, res) => {
     try {
-      const { id } = req.params;
-      await storage.deleteUser(id);
-      res.json({ success: true });
+      const { target } = scanSchema.parse(req.body);
+      
+      const scan = await storage.createScan(target);
+      
+      // Simulate scan progress
+      setTimeout(async () => {
+        for (let progress = 10; progress <= 100; progress += 10) {
+          await storage.updateScanProgress(scan.id, progress);
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+        
+        await storage.completeScan(scan.id, `Scan completed for ${target}. No critical vulnerabilities found.`);
+      }, 1000);
+      
+      res.json({ scan });
     } catch (error) {
-      res.status(500).json({ error: "Failed to delete user" });
+      res.status(400).json({ message: "Invalid scan target" });
     }
   });
 
-  // Dashboard data routes
-  app.get("/api/dashboard/metrics", async (req, res) => {
-    try {
-      const metrics = await storage.getDashboardMetrics();
-      res.json(metrics);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch dashboard metrics" });
+  // Get scan status
+  app.get("/api/scan/:id", requireAuth, async (req, res) => {
+    const scan = await storage.getScan(req.params.id);
+    if (!scan) {
+      return res.status(404).json({ message: "Scan not found" });
     }
-  });
-
-  app.get("/api/devices", async (req, res) => {
-    try {
-      const devices = await storage.getAllDevices();
-      res.json(devices);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch devices" });
-    }
-  });
-
-  app.get("/api/open-ports", async (req, res) => {
-    try {
-      const openPorts = await storage.getAllOpenPorts();
-      res.json(openPorts);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch open ports" });
-    }
-  });
-
-  app.get("/api/cves", async (req, res) => {
-    try {
-      const cves = await storage.getAllCves();
-      res.json(cves);
-    } catch (error) {
-      res.status(500).json({ error: "Failed to fetch CVEs" });
-    }
+    
+    res.json({ scan });
   });
 
   const httpServer = createServer(app);
